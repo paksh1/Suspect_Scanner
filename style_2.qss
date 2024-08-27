@@ -1,0 +1,36 @@
+/* style.qss */
+QTabWidget::pane {
+    border-top: 2px solid #2196F3; /* blue accent color */
+}
+
+QTabBar::tab {
+    background: #fff; /* white background */
+    color: #333; /* dark text color */
+    padding: 8px 16px; /* padding around text */
+    margin: 0;
+    border-top-left-radius: 4px; /* rounded corners */
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected, QTabBar::tab:hover {
+    background: #2196F3; /* blue accent color */
+    color: #fff; /* white text color */
+}
+
+QWidget {
+    background: #f0f0f0; /* light grey background */
+    color: #333; /* dark text color */
+    font-family: Arial, sans-serif; /* set font */
+}
+
+QPushButton {
+    background-color: #2196F3; /* blue accent color */
+    color: white; /* white text color */
+    padding: 8px 16px; /* padding around text */
+    border: none; /* no border */
+    border-radius: 4px; /* rounded corners */
+}
+
+QPushButton:hover {
+    background-color: #1976D2; /* slightly darker blue on hover */
+}
