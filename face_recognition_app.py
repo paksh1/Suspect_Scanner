@@ -7,8 +7,6 @@ import cv2
 import os
 import sqlite3
 from deepface import DeepFace
-import numpy as np
-
 
 class ClickableLabel(QLabel):
     def __init__(self, parent=None):
@@ -22,7 +20,7 @@ class ClickableLabel(QLabel):
 class FaceRecognitionApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Face and Weapon Detection App")
+        self.setWindowTitle("Face Recognition App")
         self.setGeometry(100, 100, 900, 600)
 
         self.matched_filename = None
@@ -30,7 +28,7 @@ class FaceRecognitionApp(QWidget):
         layout = QVBoxLayout()
 
         # Add a title label
-        title_label = QLabel("CrimeCatcher")
+        title_label = QLabel("Modern Face Recognition App")
         title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #333; margin-bottom: 20px;")
         layout.addWidget(title_label, alignment=Qt.AlignCenter)
 
@@ -77,20 +75,12 @@ class FaceRecognitionApp(QWidget):
         self.images = []
         self.filenames = []
 
-        # Load YOLO model for weapon detection
-        self.net = cv2.dnn.readNet("D:\\Assignments\\python\\python path\\Scripts\\yolov3.weights", "D:\\Assignments\\python\\python path\\Scripts\\yolov3.cfg")
-        with open("D:\\Assignments\\python\\python path\\Scripts\\coco.names", "r") as f:
-            self.classes = [line.strip() for line in f.readlines()]
-        self.layer_names = self.net.getLayerNames()
-        self.output_layers = self.net.getUnconnectedOutLayersNames()
-
-
     def recognize_from_webcam(self):
         self.clear_gui()
         self.images, self.filenames = self.load_images_from_folder("faces")
         self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FPS, 120)
-        self.timer.start(0)
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
+        self.timer.start(30)
 
     def recognize_from_photo(self):
         self.clear_gui()
@@ -123,43 +113,6 @@ class FaceRecognitionApp(QWidget):
                 return True
         return False
 
-    
-    def detect_weapons(self, frame):
-        height, width = frame.shape[:2]  # Get the height and width of the frame
-
-        # Create a blob from the frame
-        blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (416, 416), swapRB=True, crop=False)
-        self.net.setInput(blob)  # Set the input for the network
-        outputs = self.net.forward(self.output_layers)  # Forward pass to get output
-
-        # Loop through the outputs
-        for output in outputs:
-            for detection in output:
-                scores = detection[5:]  # Get the scores for the classes
-                class_id = np.argmax(scores)  # Get the class with the highest score
-                confidence = scores[class_id]  # Confidence score for the detected class
-
-                # Check if confidence is above threshold and class is either knife or gun
-                if confidence > 0.5 and self.classes[class_id] in ["knife", "gun"]:
-                    center_x = int(detection[0] * width)
-                    center_y = int(detection[1] * height)
-                    w = int(detection[2] * width)
-                    h = int(detection[3] * height)
-
-                    x = int(center_x - w / 2)
-                    y = int(center_y - h / 2)
-
-                    # Draw rectangle around the detected weapon
-                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                    cv2.putText(frame, f"{self.classes[class_id]}: {confidence:.2f}", (x, y - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
-                    return True  # Return True if a weapon is detected
-
-        return False  # Return False if no weapon is detected
-
-
-
     def update_webcam_feed(self):
         ret, frame = self.cap.read()
         if not ret:
@@ -170,71 +123,89 @@ class FaceRecognitionApp(QWidget):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-        # Draw rectangles around the faces and check for matches
+        # Draw rectangles around the faces
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+
+            # Extract the face from the frame (in color)
             face_roi = frame[y:y+h, x:x+w]
 
+            # Check if the extracted face matches any of the stored images
             if self.process_frame(face_roi):
                 matched_filename_without_extension = os.path.splitext(self.matched_filename)[0]
                 info_text = f"<b>Matched Face:</b> {matched_filename_without_extension}<br>"
                 info_text += self.retrieve_data_from_database(matched_filename_without_extension)
                 self.info_label.setText(info_text)
+
+                # Display the matched image
                 matched_image_path = os.path.join("faces", self.matched_filename)
                 self.display_image(matched_image_path, self.matched_image_label)
+
+                # Display the input frame that matched
                 self.display_frame(frame, self.input_image_label)
+
                 self.timer.stop()
                 self.cap.release()
                 return
 
-        # Check for weapons
-        if self.detect_weapons(frame):
-            self.info_label.setText("⚠️ Weapon detected! Please stay alert!")
-        
+        # Display the frame with detected faces
         self.display_frame(frame, self.input_image_label)
 
     def retrieve_data_from_database(self, face_id):
         conn = sqlite3.connect('face_info.db')
         cursor = conn.cursor()
+
         cursor.execute("SELECT * FROM info WHERE face_id=?", (face_id,))
         rows = cursor.fetchall()
+
         info_text = "<br><b>Details:</b><br>"
         if rows:
             for row in rows:
                 info_text += f"<b>Name:</b> {row[1]}<br>"
                 info_text += f"<br>More details: <a href='{row[2]}'>Click here</a>"
-                if len(row) > 3:
+                if len(row) > 3:  # Check if there are enough elements in the row
                     info_text += f"<b>Gender:</b> {row[3]}<br>"
+                # Add more fields as needed
         else:
             info_text += "Face does not match with anyone.<br>"
+
         conn.close()
         return info_text
+
+    def recognize_face_from_photo(self, image_path):
+        frame = cv2.imread(image_path)
+        if frame is None:
+            self.info_label.setText("Failed to load image.")
+            return
+
+        if self.process_frame(frame):
+            matched_filename_without_extension = os.path.splitext(self.matched_filename)[0]
+            info_text = f"<b>Matched Face:</b> {matched_filename_without_extension}<br>"
+            info_text += self.retrieve_data_from_database(matched_filename_without_extension)
+            self.info_label.setText(info_text)
+
+            # Display the matched image
+            matched_image_path = os.path.join("faces", self.matched_filename)
+            self.display_image(matched_image_path, self.matched_image_label)
+        else:
+            self.info_label.setText("Face not recognized in the photo.")
 
     def display_frame(self, frame, label):
         h, w, ch = frame.shape
         bytes_per_line = ch * w
         convert_to_qt_format = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(convert_to_qt_format.rgbSwapped())
-        label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        pixmap = QPixmap.fromImage(convert_to_qt_format)
+        pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)  # Maintain aspect ratio and smooth scaling
+        label.setPixmap(pixmap)
 
     def display_image(self, image_path, label):
         pixmap = QPixmap(image_path)
-        label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-
-    def recognize_face_from_photo(self, photo_path):
-        photo = cv2.imread(photo_path)
-        if self.process_frame(photo):
-            matched_image_path = os.path.join("faces", self.matched_filename)
-            self.display_image(matched_image_path, self.matched_image_label)
-            matched_filename_without_extension = os.path.splitext(self.matched_filename)[0]
-            info_text = f"<b>Matched Face:</b> {matched_filename_without_extension}<br>"
-            info_text += self.retrieve_data_from_database(matched_filename_without_extension)
-            self.info_label.setText(info_text)
-        else:
-            self.info_label.setText("No match found for the uploaded photo.")
+        pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)  # Maintain aspect ratio and smooth scaling
+        label.setPixmap(pixmap)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = FaceRecognitionApp()
     window.show()
     sys.exit(app.exec_())
+

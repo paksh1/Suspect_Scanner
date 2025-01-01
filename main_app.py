@@ -19,8 +19,8 @@ class MainWindow(QWidget):
             style = f.read()
             self.data_entry_form.setStyleSheet(style)
 
-        self.tab_widget.addTab(self.face_recognition_app, 'Face Recognition And Weapon Detection App')
         self.tab_widget.addTab(self.data_entry_form, 'Data Entry Form')
+        self.tab_widget.addTab(self.face_recognition_app, 'Face Recognition & Weapon Detection App')
 
         layout.addWidget(self.tab_widget)
 
